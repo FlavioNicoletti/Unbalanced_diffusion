@@ -98,9 +98,12 @@ Each file has shape `(n_realizations, n_samples)` where samples are taken logari
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Load results
-train_loss = np.load('results_training/.../Train_loss_weight=0.5_var1=0.5_var2=0.5.npy')
-training_time = np.load('results_training/.../Training_time_weight=0.5_var1=0.5_var2=0.5.npy')
+# Example: Load results from a specific run
+# Path format: results_training/{cluster_type}/{run_name}/{filename}
+run_path = 'results_training/well_separated_centroids/Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD'
+
+train_loss = np.load(f'{run_path}/Train_loss_weight=0.5_var1=0.5_var2=0.5.npy')
+training_time = np.load(f'{run_path}/Training_time_weight=0.5_var1=0.5_var2=0.5.npy')
 
 # Plot mean across realizations
 plt.loglog(training_time.mean(axis=0), train_loss.mean(axis=0))

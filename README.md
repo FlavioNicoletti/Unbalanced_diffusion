@@ -3,16 +3,26 @@ Study of the generalization performances of diffusion models trained on biased m
 
 ## Getting Started
 
-This repository contains code for training random feature diffusion models on imbalanced multimodal datasets.
+This repository contains code for training diffusion models trained on imbalanced multimodal datasets.
+The repository contains the following folders:
+
+1) Random_Features: study of score-based diffusion through a random feature model.
+2) XXX(Chenxiao)
+3) XXX(Enrico)
 
 ### Quick Start
 
+1)RF:
 ```bash
 cd Random_Features
 python Training_random_features_mixture_unbalance.py
 ```
 
 For detailed usage instructions, see the [Tutorial](Random_Features/TUTORIAL.md).
+
+2)XXX(Chenxiao)
+
+3)XXX(Enrico)
 
 ## Repository Structure
 

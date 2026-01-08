@@ -196,4 +196,4 @@ Where η is Gaussian noise, a_t and δ_t depend on the diffusion type.
 ## References
 
 For more details on the theoretical background, see the paper:
-"Study of the generalization performances of diffusion models trained on biased multimodal datasets"
+"On diffusion models on unbalanced datasets" (work in progress)

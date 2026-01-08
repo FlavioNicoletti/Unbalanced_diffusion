@@ -1,10 +1,5 @@
 """
 GEP Gaussian Mixture Eigenvalue Computation
-BATCH PROCESSING VERSION with EMPIRICAL MEANS (Monte Carlo) instead of numerical integration.
-
-Changes from the original:
-1. Samples are processed in parallel BATCHES (not all individually)
-2. Hermite integrals replaced with empirical mean estimation (Monte Carlo)
 
 Usage:
     python test_GEP_gaussian_mixture_batch.py -d 100 -p 800 -s 400 -r 10 -b 50

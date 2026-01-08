@@ -468,7 +468,7 @@ def print_training_loss_curve(training_times, loss_train, loss_train_cluster1, l
 if __name__ == "__main__":
     
     #output directory
-    output_dir = f"results/output_spectral_quantities_sampling_bias_t_diff={t_diffusion}_type={diffusion_type}/P={p}_D={d}_S={n_samples}/"
+    output_dir = f"results_spectrum/output_spectral_quantities_sampling_bias_t_diff={t_diffusion}_type={diffusion_type}/P={p}_D={d}_S={n_samples}/"
     os.makedirs(output_dir, exist_ok=True)
 
     # Output files for total and per-cluster spectra

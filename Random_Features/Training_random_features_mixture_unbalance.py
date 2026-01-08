@@ -15,7 +15,7 @@ import torch
 import torch.optim as optim
 import argparse
 
-main_dir = "results"
+main_dir = ""
 centroids_factor = 3.0
 if centroids_factor == 1.0:
     end_dir = "partially_overlapped_centroids"
@@ -52,7 +52,7 @@ def get_args():
     parser.add_argument("-num_epochs", "--num_epochs", type=int, default=int(5e6), help="Number of training iterations")
     
     ## output
-    parser.add_argument("-output_dir", "--output_dir", type=str, default=f"{main_dir}/results_training_RF/{end_dir}", help="Directory to save results")
+    parser.add_argument("-output_dir", "--output_dir", type=str, default=f"{main_dir}results/{end_dir}", help="Directory to save results")
     
     ## seed
     parser.add_argument("-seed", "--seed", type=int, default=42, help="Random seed for reproducibility")

@@ -52,7 +52,7 @@ def get_args():
     parser.add_argument("-num_epochs", "--num_epochs", type=int, default=int(5e6), help="Number of training iterations")
     
     ## output
-    parser.add_argument("-output_dir", "--output_dir", type=str, default=f"{main_dir}results/{end_dir}", help="Directory to save results")
+    parser.add_argument("-output_dir", "--output_dir", type=str, default=f"{main_dir}results_training/{end_dir}", help="Directory to save results")
     
     ## seed
     parser.add_argument("-seed", "--seed", type=int, default=42, help="Random seed for reproducibility")

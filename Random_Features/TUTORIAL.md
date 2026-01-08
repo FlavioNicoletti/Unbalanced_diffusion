@@ -173,7 +173,7 @@ Where η is Gaussian noise, a_t and δ_t depend on the diffusion type.
 
 - Training time scales with O(d × p × n × num_epochs)
 - GPU acceleration is automatic if available
-- Learning rate is scaled as: `2e-4 * d / δ_t`
+- Learning rate is scaled as: `lr * d / δ_t`, where lr=2e-4 and lr=5e-4 are used respectively for POC (Partially overlapped centroids) and WSC (Well separated centroids).
 - Logging uses logarithmic sampling (200 points) to reduce overhead
 
 ## Troubleshooting

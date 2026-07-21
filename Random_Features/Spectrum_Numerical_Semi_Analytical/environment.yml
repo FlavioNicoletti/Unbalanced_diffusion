@@ -1,0 +1,22 @@
+# Conda environment for GEP_gaussian_mixture_UDiff_batch_userfriendly.py
+#
+# Create the environment with:
+#     conda env create -f environment.yml
+#
+# Then activate it with:
+#     conda activate class-imbalance-diffusion
+#
+# To update an existing environment after editing this file:
+#     conda env update -f environment.yml --prune
+
+name: class-imbalance-diffusion
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python>=3.9,<3.13
+  - numpy>=1.23
+  - numba>=0.57
+  - joblib>=1.2
+  - matplotlib>=3.6

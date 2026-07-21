@@ -1,0 +1,10 @@
+# Python dependencies for GEP_gaussian_mixture_UDiff_batch_userfriendly.py
+# Install with:  pip install -r requirements.txt
+#
+# Tested with Python 3.9-3.12. The pinned lower bounds are conservative;
+# newer versions generally work fine.
+
+numpy>=1.23
+numba>=0.57
+joblib>=1.2
+matplotlib>=3.6

@@ -1,0 +1,26 @@
+# Conda environment for Training_random_features_mixture_unbalance_userfriendly.py
+#
+# Create the environment with:
+#     conda env create -f environment.yml
+#
+# Then activate it with:
+#     conda activate class-imbalance-diffusion
+#
+# To update an existing environment after editing this file:
+#     conda env update -f environment.yml --prune
+#
+# Note: for a CUDA-enabled PyTorch build, follow the instructions at
+# https://pytorch.org/get-started/locally/ (add the appropriate pytorch-cuda
+# package and the nvidia channel). The spec below installs a CPU/GPU build as
+# resolved by conda for your platform.
+
+name: class-imbalance-diffusion
+
+channels:
+  - pytorch
+  - conda-forge
+
+dependencies:
+  - python>=3.9,<3.13
+  - numpy>=1.23
+  - pytorch>=2.0

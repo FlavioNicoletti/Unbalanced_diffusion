@@ -1,0 +1,9 @@
+# Python dependencies for Training_random_features_mixture_unbalance_userfriendly.py
+# Install with:  pip install -r requirements.txt
+#
+# Tested with Python 3.9-3.12. The pinned lower bounds are conservative;
+# newer versions generally work fine. A CUDA GPU is used automatically if
+# available, otherwise the script runs on CPU.
+
+numpy>=1.23
+torch>=2.0

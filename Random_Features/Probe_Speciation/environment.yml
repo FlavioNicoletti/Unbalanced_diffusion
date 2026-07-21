@@ -1,0 +1,21 @@
+# Conda environment for GEP_gaussian_mixture_UDiff_probe_speciation_userfriendly.py
+#
+# Create the environment with:
+#     conda env create -f environment.yml
+#
+# Then activate it with:
+#     conda activate class-imbalance-diffusion-speciation
+#
+# To update an existing environment after editing this file:
+#     conda env update -f environment.yml --prune
+
+name: class-imbalance-diffusion-speciation
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python>=3.9,<3.13
+  - numpy>=1.23
+  - numba>=0.57
+  - joblib>=1.2

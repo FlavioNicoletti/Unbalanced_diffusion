@@ -30,8 +30,10 @@ For each of several random *realizations* it:
    - `U`        — the empirical (sample-based) feature covariance,
    - `U_tilde`  — its population / generalization counterpart (sample-free).
 5. **Diagonalizes** both matrices and derives **training / test / score-matching
-   loss curves** as functions of training time.
-6. **Writes** all spectral quantities and loss curves to text files under
+   loss curves** as functions of training time. The expression of the learning curves 
+   can be found in Appendices G 'Theoretical curves of train and
+   test losses' and H 'Score MSE' of the paper.
+7. **Writes** all spectral quantities and loss curves to text files under
    `results/`.
 
 The expensive per-sample loop is split into **batches** that run in parallel via

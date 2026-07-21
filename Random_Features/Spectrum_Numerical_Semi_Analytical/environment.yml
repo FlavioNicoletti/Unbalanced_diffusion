@@ -1,4 +1,4 @@
-# Conda environment for GEP_gaussian_mixture_UDiff_batch_userfriendly.py
+# Conda environment for Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py
 #
 # Create the environment with:
 #     conda env create -f environment.yml

@@ -1,4 +1,4 @@
-# Python dependencies for GEP_gaussian_mixture_UDiff_batch_userfriendly.py
+# Python dependencies for Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py
 # Install with:  pip install -r requirements.txt
 #
 # Tested with Python 3.9-3.12. The pinned lower bounds are conservative;

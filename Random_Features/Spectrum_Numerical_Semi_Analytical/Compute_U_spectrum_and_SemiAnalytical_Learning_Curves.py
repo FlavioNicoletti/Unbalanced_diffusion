@@ -33,16 +33,16 @@ HOW TO RUN THE SCRIPT
 --------------------------------------------------------------------------------
 Basic run with defaults:
 
-    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py
+    python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py
 
 Custom run (dimension d=100, p=800 features, 400 samples, 10 realizations,
 batch size 50):
 
-    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py -d 100 -p 800 -s 400 -r 10 -b 50
+    python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py -d 100 -p 800 -s 400 -r 10 -b 50
 
 See all options:
 
-    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py --help
+    python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py --help
 
 --------------------------------------------------------------------------------
 REQUIREMENTS

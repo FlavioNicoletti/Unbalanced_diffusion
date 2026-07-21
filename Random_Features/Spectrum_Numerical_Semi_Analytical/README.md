@@ -6,7 +6,7 @@ two-cluster Gaussian mixture — a simple model of *class imbalance* in the
 context of diffusion generative models.
 
 The fully-commented code is in the file
-[`GEP_gaussian_mixture_UDiff_batch_userfriendly.py`](GEP_gaussian_mixture_UDiff_batch_userfriendly.py).
+[`Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py`](Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py).
 
 ---
 
@@ -66,20 +66,20 @@ if you re-enable the optional plotting block at the end of the script).
 Run with defaults:
 
 ```bash
-python GEP_gaussian_mixture_UDiff_batch_userfriendly.py
+python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py
 ```
 
 Custom run (`d=100`, `p=800` features, `400` samples, `10` realizations, batch
 size `50`):
 
 ```bash
-python GEP_gaussian_mixture_UDiff_batch_userfriendly.py -d 100 -p 800 -s 400 -r 10 -b 50
+python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py -d 100 -p 800 -s 400 -r 10 -b 50
 ```
 
 See all options:
 
 ```bash
-python GEP_gaussian_mixture_UDiff_batch_userfriendly.py --help
+python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py --help
 ```
 
 ---

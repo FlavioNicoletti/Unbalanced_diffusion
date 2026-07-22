@@ -1,0 +1,12 @@
+# Python dependencies for saddle_point_spectrum.py
+# Install with:  pip install -r requirements.txt
+#
+# Tested with Python 3.9-3.12. The pinned lower bounds are conservative;
+# newer versions generally work fine.
+#
+# matplotlib is only needed if you re-enable the optional plotting blocks
+# (commented out in the script); the solver itself needs only numpy + scipy.
+
+numpy>=1.23
+scipy>=1.9
+matplotlib>=3.6

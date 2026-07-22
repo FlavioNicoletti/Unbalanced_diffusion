@@ -1,0 +1,21 @@
+# Conda environment for saddle_point_spectrum.py
+#
+# Create the environment with:
+#     conda env create -f environment.yml
+#
+# Then activate it with:
+#     conda activate class-imbalance-diffusion-asymptotic
+#
+# To update an existing environment after editing this file:
+#     conda env update -f environment.yml --prune
+
+name: class-imbalance-diffusion-asymptotic
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python>=3.9,<3.13
+  - numpy>=1.23
+  - scipy>=1.9
+  - matplotlib>=3.6

@@ -135,7 +135,7 @@ A few parameters are fixed near the top of the script (edit there if needed):
 the available activations (`ACTIVATIONS`), the exact-ReLU switch
 (`use_exact_relu_coefficients`), the eigenvalue grid (`n_values`,
 `lambda_values`), the continuation protocol (`n_iter`), and the training-loss
-time grid (`training_times`, learning rate `lr`).
+time grid (`training_times`, learning rate `lr` to rescale the training time if needed).
 
 ---
 

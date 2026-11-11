@@ -1,11 +1,11 @@
 # Probing the "inference" of the class centroids by a random-feature model of the diffusion score
 
 This repository probes the **inference transition** of a random-feature model
-built on a two-cluster Gaussian mixture — a simple model of *class imbalance* in
+built on a two-class Gaussian mixture — a simple model of *class imbalance* in
 diffusion generative models. As the diffusion time is scanned backwards, the
 empirical feature covariance `U` develops isolated top eigenvalues whose
-eigenvectors begin to **align with a single cluster centroid**: the
-random-feature model *infers* the class centroids. That alignment ("inference")
+eigenvectors begin to **align with the projected class centroid**: the
+random-feature model *infers* the class centroids in the latent space. That alignment ("inference")
 is what the script measures. It is a property of the random-feature model,
 distinct from the speciation of the diffusion process, whose time scale sets the
 probed window (see [The diffusion-time sweep](#the-diffusion-time-sweep)).
@@ -21,7 +21,7 @@ For each of several random *realizations*, and within each a **sweep of
 diffusion times**, it:
 
 1. **Draws a dataset** of `n_samples` points in dimension `d`, split into two
-   Gaussian clusters with tunable mixing weight, variances, and centroid length
+   Gaussian classs with tunable mixing weight, variances, and centroid length
    scales. Strong under-sampling of the minority class can be requested via an
    exponent (majority weight = `1 - d^{-exponent}`).
 2. **Builds a random projection matrix** `W` of shape `p × d` (the "random
@@ -29,14 +29,14 @@ diffusion times**, it:
 3. **Computes Hermite coefficients** (`alpha`, `beta_tilde`, `gamma_tilde`,
    `beta`) that describe how the activation function (`tanh` by default, see
    [Activation function](#activation-function)) acts on Gaussian inputs, per
-   cluster, with fast 1D/2D trapezoidal integration (JIT-compiled with `numba`).
+   class, with fast 1D/2D trapezoidal integration (JIT-compiled with `numba`).
    With non-zero centroids the coefficients differ across feature dimensions, so
-   each cluster yields a `p × 4` array.
+   each class yields a `p × 4` array.
 4. **Assembles the empirical feature covariance** `U` (`p × p`, sample-based) by
    summing per-sample contributions in parallel **batches** via `joblib`.
 5. **Diagonalizes** `U` and records, per diffusion time, the top three
    eigenvalues and the cosine similarities of the top eigenvectors with the
-   projected cluster centroids (the "inference signals").
+   projected class centroids (the "inference signals").
 6. **Appends** these signals to a text file under `results_inference/`.
 
 ---
@@ -140,9 +140,9 @@ python centroids_SNR_at_speciation_scale.py --help
 | `-r`  | `--realizations`   | `10`   | Number of independent random realizations. |
 |       | `--ortho`          | off    | Kept for interface compatibility; here it only affects the output file name. |
 | `-b`  | `--batch_size`     | `50`   | Samples processed together in one parallel batch. |
-| `-w`  | `--weight`         | `0.5`  | Mixing weight of cluster 1 (cluster 2 gets `1 - weight`). Ignored when `-u_samp_exp > 0`. |
-| `-var1` | `--var1`         | `0.5`  | Variance of cluster 1. |
-| `-var2` | `--var2`         | `0.5`  | Variance of cluster 2. |
+| `-w`  | `--weight`         | `0.5`  | Mixing weight of class 1 (class 2 gets `1 - weight`). Ignored when `-u_samp_exp > 0`. |
+| `-var1` | `--var1`         | `0.5`  | Variance of class 1. |
+| `-var2` | `--var2`         | `0.5`  | Variance of class 2. |
 | `-c1` | `--centroid_factor1` | `3.0` | Length scale of centroid 1. |
 | `-c2` | `--centroid_factor2` | `3.0` | Length scale of centroid 2. |
 | `-u_samp_exp` | `--under_sampling_exponent` | `0.0` | Under-sampling exponent: majority weight `= 1 - d^{-exp}` (0.0 = use fixed `--weight`; must be ≥ 0). |
@@ -181,7 +181,7 @@ contains, in order:
 | 10 | `⟨cos(other eigvecs, μ₂)⟩` — average over all remaining eigenvectors |
 
 Here `v₁ / v₂` are the eigenvectors of the largest / second-largest eigenvalue
-of `U`, and `μ₁ / μ₂` are the projected cluster centroids.
+of `U`, and `μ₁ / μ₂` are the projected class centroids.
 
 > **Note:** the output file is opened in *append* mode, so re-running with the
 > same parameters adds new rows rather than overwriting. Delete or move the

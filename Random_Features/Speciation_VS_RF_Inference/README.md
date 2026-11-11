@@ -4,7 +4,7 @@ This repository probes the **inference transition** of a random-feature model
 built on a two-cluster Gaussian mixture — a simple model of *class imbalance* in
 diffusion generative models. As the diffusion time is scanned backwards, the
 empirical feature covariance `U` develops isolated top eigenvalues whose
-eigenvectors begin to **align with a single cluster centroid**: the
+eigenvectors begin to **align with the class centroids**: the
 random-feature model *infers* the class centroids. That alignment ("inference")
 is what the script measures. It is a property of the random-feature model,
 distinct from the speciation of the diffusion process, whose time scale sets the

@@ -132,8 +132,8 @@ python Training_random_features_mixture_unbalance_userfriendly.py --help
 | `-var1` | `--var1` | `0.5` | Variance of cluster 1. |
 | `-var2` | `--var2` | `0.5` | Variance of cluster 2. |
 | `-r` | `--r` | `0.0` | Cosine similarity between the two cluster centroids, in `[-1, 1]`. |
-| `-centroids_factor1` | `--centroids_factor1` | `1.0` | Length scale of centroid 1. |
-| `-centroids_factor2` | `--centroids_factor2` | `1.0` | Length scale of centroid 2. |
+| `-centroids_factor1` | `--centroids_factor1` | `1.0` | Length scale of centroid 1: 'centroid factor' is the norm of centroid1 divided by sqrt(d). |
+| `-centroids_factor2` | `--centroids_factor2` | `1.0` | Length scale of centroid 2. 'centroid factor' is the norm of centroid2 divided by sqrt(d). |
 | `-activation` | `--activation` | `tanh` | Activation function of the random features: a key of `ACTIVATIONS` (`tanh`, `relu` by default; case-insensitive). |
 | `-optimizer` | `--optimizer` | `GD` | Optimizer: `GD` (plain SGD) or `Adam`. |
 | `-num_epochs` | `--num_epochs` | `5000000` | Number of gradient-descent iterations. |

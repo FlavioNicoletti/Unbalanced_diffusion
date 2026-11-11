@@ -6,7 +6,7 @@ in the context of diffusion generative models — and records its **train / test
 score-matching loss curves** as functions of training time.
 
 The fully-commented code is in the file
-[`Training_random_features_mixture_unbalance_userfriendly.py`](Training_random_features_mixture_unbalance_userfriendly.py).
+[`Training_random_features_mixture_unbalance.py`](Training_random_features_mixture_unbalance.py).
 
 ---
 

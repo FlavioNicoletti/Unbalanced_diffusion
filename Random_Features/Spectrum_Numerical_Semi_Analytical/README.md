@@ -16,7 +16,7 @@ For each of several random *realizations* it:
 
 1. **Draws a dataset** of `n_samples` points in dimension `d`, split into two
    Gaussian clusters with tunable mixing weight, variances, and centroid
-   geometry (their cosine similarity).
+   geometry (their centroid factors--norm divided by sqrt(d)--and cosine similarity).
 2. **Builds a random projection matrix** `W` of shape `p × d` (the "random
    features").
 3. **Computes Hermite coefficients** (`alpha`, `beta`, `beta_tilde`,
@@ -131,8 +131,8 @@ python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves --help
 | `-w`  | `--weight`           | `0.5`  | Mixing weight of cluster 1 (cluster 2 gets `1 - weight`). |
 | `-var1` | `--var1`           | `0.5`  | Variance of cluster 1. |
 | `-var2` | `--var2`           | `0.5`  | Variance of cluster 2. |
-| `-c1` | `--centroid_factor1` | `3.0`  | Length scale of centroid 1. |
-| `-c2` | `--centroid_factor2` | `3.0`  | Length scale of centroid 2. |
+| `-c1` | `--centroid_factor1` | `3.0`  | Length scale of centroid 1: norm divided by sqrt(d). |
+| `-c2` | `--centroid_factor2` | `3.0`  | Length scale of centroid 2: norm divided by sqrt(d). |
 | `-act` | `--activation`      | `tanh` | Activation function: a key of `ACTIVATIONS` (`tanh`, `relu` by default; case-insensitive). |
 
 A few parameters are fixed near the top of the script (edit there if needed):

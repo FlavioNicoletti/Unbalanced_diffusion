@@ -14,7 +14,7 @@ The fully-commented code is in the file
 
 ## The finite-centroid regime
 
-The script treats the regime where the centroid norm is `O(1)`. At leading order
+The script treats the regime where the centroid norm is subextensive---i.e. `o(N)` for data dimension `N`. At leading order
 the centroids drop out of the asymptotic spectrum: the Hermite coefficients are
 *scalars* and the saddle-point equations reduce to two scalar unknowns
 (`g_Psi`, `g_Omega`), solved by `solve_equations_finite_centroids`.
@@ -30,8 +30,7 @@ calls the solver → writes the density, the spectral edges, and the training lo
 The activation of the random features is selected with `-activation`:
 
 - **`tanh`** (default) — odd, so the first Hermite coefficient `alpha` is zero.
-- **`relu`** — `alpha ≠ 0`. It enters the saddle-point equations through the
-  centred second moment `beta - alpha²`.
+- **`relu`** — `alpha ≠ 0`.
 
 The activation only changes the Hermite coefficients. These are evaluated
 numerically for any activation, so the rest of the code is unchanged.
@@ -163,8 +162,7 @@ Inside you get:
 ## Reproducibility
 
 The solver is **deterministic** — the results depend only on the command-line
-parameters, not on any random seed (the `seed`/`rng` defined at the top are not
-used by the computation). Running twice with the same arguments reproduces the
+parameters, not on any random seed. Running twice with the same arguments reproduces the
 output exactly.
 
 ---

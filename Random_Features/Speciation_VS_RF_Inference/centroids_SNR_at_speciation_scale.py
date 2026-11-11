@@ -217,7 +217,6 @@ t_ini = 0.8 * np.log(d)
 t_fin = 0.1 * np.log(d)
 n_times = 20
 t_diffusion = np.linspace(t_ini, t_fin, n_times)
-diffusion_type = "OU"  # "FD" (Free Diffusion) or "OU" (Ornstein-Uhlenbeck)
 
 n1 = int(n_samples * weight1)
 n2 = n_samples - n1
@@ -232,14 +231,11 @@ print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_reali
 print(f"Batch size: {batch_size}, weight: {weight}, variance cluster 1: {var1}, variance cluster 2: {var2}")
 print("seed = ", seed)
 
-# Diffusion coefficients a_t (signal scaling) and Delta_t (noise variance) at
-# each swept time. Vectorized over t_diffusion.
-if diffusion_type == "FD":       # Free Diffusion: signal kept, noise grows linearly.
-    adiff = 1.0
-    Delta_t = t_diffusion
-elif diffusion_type == "OU":     # Ornstein-Uhlenbeck: signal decays, variance -> 1.
-    adiff = np.exp(-t_diffusion)
-    Delta_t = 1.0 - np.exp(-2.0 * t_diffusion)
+# Diffusion coefficients of the Ornstein-Uhlenbeck process at each swept time
+# (vectorized over t_diffusion): a_t = exp(-t) scales the signal, Delta_t =
+# 1 - exp(-2t) is the noise variance (the signal decays, the variance -> 1).
+adiff = np.exp(-t_diffusion)
+Delta_t = 1.0 - np.exp(-2.0 * t_diffusion)
 
 
 # =============================================================================
@@ -571,10 +567,10 @@ def evaluate_U_tilde(random_features, hermite_coefficients1, hermite_coefficient
 # =============================================================================
 if __name__ == "__main__":
 
-    # Output folder encodes the diffusion type, centroid factors, activation and sizes.
+    # Output folder encodes the (Ornstein-Uhlenbeck) diffusion, centroid factors, activation and sizes.
     # (Results are appended, so runs with different activations must not share a folder.)
     output_dir = (f"results_inference/output_spectral_quantities_sampling_bias_probe_inference_"
-                  f"type={diffusion_type}_centroid1={centroids_factor1}_centroid2={centroids_factor2}_"
+                  f"type=OU_centroid1={centroids_factor1}_centroid2={centroids_factor2}_"
                   f"activation={activation}/"
                   f"P={p}_D={d}_S={n_samples}/")
     os.makedirs(output_dir, exist_ok=True)
@@ -662,7 +658,7 @@ if __name__ == "__main__":
 
             # Sum all batch contributions into the full empirical U.
             U_GEP = np.sum(np.array(batch_results), axis=0)
-            print(f"  ✓ Computed U matrix ({p}×{p}) at time t={t} with diffusion type {diffusion_type}.")
+            print(f"  ✓ Computed U matrix ({p}×{p}) at time t={t} (Ornstein-Uhlenbeck diffusion).")
 
             # ---- Diagonalize U and probe the inference of the centroids ----
             print("  Computing eigenvalues...")

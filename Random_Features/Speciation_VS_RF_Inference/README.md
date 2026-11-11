@@ -4,7 +4,7 @@ This repository probes the **inference transition** of a random-feature model
 built on a two-cluster Gaussian mixture — a simple model of *class imbalance* in
 diffusion generative models. As the diffusion time is scanned backwards, the
 empirical feature covariance `U` develops isolated top eigenvalues whose
-eigenvectors begin to **align with the class centroids**: the
+eigenvectors begin to **align with a single cluster centroid**: the
 random-feature model *infers* the class centroids. That alignment ("inference")
 is what the script measures. It is a property of the random-feature model,
 distinct from the speciation of the diffusion process, whose time scale sets the
@@ -47,9 +47,9 @@ Unlike a fixed-time spectral snapshot, this script scans the diffusion time
 from `t_ini = 0.8·log(d)` down to `t_fin = 0.1·log(d)` in `n_times = 20` steps.
 The range is set relative to `log(d)`, the `d`-dependent time scale of
 speciation of the diffusion process, around which the script probes when the
-random-feature model infers the class centroids. Two noising schedules are available (`diffusion_type`
-near the top of the script): `OU` (Ornstein–Uhlenbeck, default) and `FD` (Free
-Diffusion).
+random-feature model infers the class centroids. The noising process is the
+Ornstein–Uhlenbeck one: `x_t = a_t·x + sqrt(Delta_t)·η`, with `a_t = e^{-t}` and
+`Delta_t = 1 - e^{-2t}`.
 
 ---
 
@@ -149,8 +149,8 @@ python centroids_SNR_at_speciation_scale.py --help
 | `-act` | `--activation` | `tanh` | Activation function: a key of `ACTIVATIONS` (`tanh`, `relu` by default; case-insensitive). |
 
 A few parameters are fixed near the top of the script (edit there if needed):
-the diffusion-time window (`t_ini`, `t_fin`, `n_times`), the diffusion type
-(`"OU"` or `"FD"`), and the integration-grid resolution (`n_grid`, `xi_max`).
+the diffusion-time window (`t_ini`, `t_fin`, `n_times`) and the
+integration-grid resolution (`n_grid`, `xi_max`).
 
 ---
 

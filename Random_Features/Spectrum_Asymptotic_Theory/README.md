@@ -164,8 +164,7 @@ Inside you get:
 ## Reproducibility
 
 The solver is **deterministic** — the results depend only on the command-line
-parameters, not on any random seed (the `seed`/`rng` defined at the top are not
-used by the computation). Running twice with the same arguments reproduces the
+parameters, not on any random seed. Running twice with the same arguments reproduces the
 output exactly.
 
 ---

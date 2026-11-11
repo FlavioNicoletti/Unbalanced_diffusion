@@ -15,11 +15,25 @@ The fully-commented code is in the file
 The score network is a one-hidden-layer random-feature map
 
 ```
-S_A(x) = A · tanh( W x / sqrt(d) )
+S_A(x) = A · phi( W x / sqrt(d) )
 ```
 
 where the random features `W` (shape `p × d`) are **frozen** at initialization
 and only the readout matrix `A` (shape `d × p`) is **trained**.
+
+The activation `phi` is selected with `-activation` among the entries of the
+`ACTIVATIONS` dictionary at the top of the script, which by default contains
+`tanh` (the default) and `relu`. To use another activation, add an entry, e.g.
+
+```python
+ACTIVATIONS = {
+    "tanh": torch.tanh,
+    "relu": torch.relu,
+    "gelu": torch.nn.functional.gelu,
+}
+```
+
+Any function acting elementwise on torch tensors works.
 
 Data is corrupted with a diffusion process `x_t = a_t·x + sqrt(delta_t)·η`
 (`η ~ N(0, I)`). Two noising schedules are supported:
@@ -50,7 +64,7 @@ For each of several random *realizations* it:
    - **test loss** — same loss on fresh samples (total and per cluster),
    - **score error** — squared distance between the learned score and the exact
      mixture score (total and per cluster).
-5. **Appends** all recorded curves to `.npy` files under `results_new_bis/`.
+5. **Appends** all recorded curves to `.npy` files under `results_training/`.
 
 ---
 
@@ -90,6 +104,13 @@ python Training_random_features_mixture_unbalance_userfriendly.py \
     -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5
 ```
 
+Same run with ReLU activation:
+
+```bash
+python Training_random_features_mixture_unbalance_userfriendly.py \
+    -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5 -activation relu
+```
+
 See all options:
 
 ```bash
@@ -113,9 +134,10 @@ python Training_random_features_mixture_unbalance_userfriendly.py --help
 | `-r` | `--r` | `0.0` | Cosine similarity between the two cluster centroids, in `[-1, 1]`. |
 | `-centroids_factor1` | `--centroids_factor1` | `1.0` | Length scale of centroid 1. |
 | `-centroids_factor2` | `--centroids_factor2` | `1.0` | Length scale of centroid 2. |
+| `-activation` | `--activation` | `tanh` | Activation function of the random features: a key of `ACTIVATIONS` (`tanh`, `relu` by default; case-insensitive). |
 | `-optimizer` | `--optimizer` | `GD` | Optimizer: `GD` (plain SGD) or `Adam`. |
 | `-num_epochs` | `--num_epochs` | `5000000` | Number of gradient-descent iterations. |
-| `-output_dir` | `--output_dir` | `results_new_bis/results_training_RF/` | Directory to save results. |
+| `-output_dir` | `--output_dir` | `results_training/results_training_RF/` | Directory to save results. |
 | `-n_realizations` | `--n_realizations` | `1` | Number of independent training realizations. |
 
 A few quantities are set inside the script (edit there if needed): the top-level
@@ -128,13 +150,14 @@ and the evaluation batch size (`100`).
 
 ## Output
 
-A nested folder is created under `results_new_bis/results_training_RF/` whose
-name encodes the centroid factors and the run parameters, e.g.:
+A nested folder is created under `results_training/results_training_RF/` whose
+name encodes the centroid factors and the run parameters (including the
+activation, so runs with different activations never share files), e.g.:
 
 ```
-results_new_bis/results_training_RF/
+results_training/results_training_RF/
     centroids_factor1_1.0_centroids_factor2_1.0/
-        Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD/
+        Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD_activation=tanh/
 ```
 
 Inside, per parameter set, you get eight `.npy` files (the `weight`, `var1`,

@@ -6,7 +6,7 @@ two-cluster Gaussian mixture — a simple model of *class imbalance* in the
 context of diffusion generative models.
 
 The fully-commented code is in the file
-[`Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py`](Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py).
+[`GEP_gaussian_mixture_UDiff_batch_userfriendly.py`](GEP_gaussian_mixture_UDiff_batch_userfriendly.py).
 
 ---
 
@@ -20,7 +20,8 @@ For each of several random *realizations* it:
 2. **Builds a random projection matrix** `W` of shape `p × d` (the "random
    features").
 3. **Computes Hermite coefficients** (`alpha`, `beta`, `beta_tilde`,
-   `gamma_tilde`) that describe how a `tanh` non-linearity acts on Gaussian
+   `gamma_tilde`) that describe how the activation function (`tanh` by default,
+   see [Activation function](#activation-function)) acts on Gaussian
    inputs. These are obtained for each cluster with fast 1D/2D trapezoidal
    numerical integration (JIT-compiled with `numba`). For non-zero centroids,
    the coefficients are different for each hidden feature dimension, therefore
@@ -30,14 +31,39 @@ For each of several random *realizations* it:
    - `U`        — the empirical (sample-based) feature covariance,
    - `U_tilde`  — its population / generalization counterpart (sample-free).
 5. **Diagonalizes** both matrices and derives **training / test / score-matching
-   loss curves** as functions of training time. The expression of the learning curves 
-   can be found in Appendices G 'Theoretical curves of train and
-   test losses' and H 'Score MSE' of the paper.
-7. **Writes** all spectral quantities and loss curves to text files under
-   `results/`.
+   loss curves** as functions of training time.
+6. **Writes** all spectral quantities and loss curves to text files under
+   `results_spectrum/`.
 
 The expensive per-sample loop is split into **batches** that run in parallel via
 `joblib`.
+
+---
+
+## Activation function
+
+The activation is selected with `-act` / `--activation` among the keys of the
+`ACTIVATIONS` dictionary at the top of the script. By default it contains:
+
+- **`tanh`** (default) — odd, so `alpha = 0` for zero centroids;
+- **`relu`** — `alpha ≠ 0`.
+
+The activation enters only through the Hermite coefficients, which are always
+evaluated numerically; the construction of `U` and `U_tilde` is the same for
+every activation. To use another activation, add an entry to the dictionary:
+
+```python
+ACTIVATIONS = {
+    "tanh": lambda x: np.tanh(x),
+    "relu": lambda x: np.maximum(x, 0.0),
+    "my_activation": lambda x: ...,
+}
+```
+
+and run with `-act my_activation`. The function must accept both scalars and
+numpy arrays and be compilable by `numba` (plain numpy expressions such as
+`np.tanh`, `np.maximum`, `np.exp` are fine), because the script JIT-compiles it
+and calls it inside the integration kernels.
 
 ---
 
@@ -66,20 +92,26 @@ if you re-enable the optional plotting block at the end of the script).
 Run with defaults:
 
 ```bash
-python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py
+python GEP_gaussian_mixture_UDiff_batch_userfriendly.py
 ```
 
 Custom run (`d=100`, `p=800` features, `400` samples, `10` realizations, batch
 size `50`):
 
 ```bash
-python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py -d 100 -p 800 -s 400 -r 10 -b 50
+python GEP_gaussian_mixture_UDiff_batch_userfriendly.py -d 100 -p 800 -s 400 -r 10 -b 50
+```
+
+Same run with ReLU activation:
+
+```bash
+python GEP_gaussian_mixture_UDiff_batch_userfriendly.py -d 100 -p 800 -s 400 -r 10 -b 50 -act relu
 ```
 
 See all options:
 
 ```bash
-python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py --help
+python GEP_gaussian_mixture_UDiff_batch_userfriendly.py --help
 ```
 
 ---
@@ -101,6 +133,7 @@ python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py --help
 | `-var2` | `--var2`           | `0.5`  | Variance of cluster 2. |
 | `-c1` | `--centroid_factor1` | `3.0`  | Length scale of centroid 1. |
 | `-c2` | `--centroid_factor2` | `3.0`  | Length scale of centroid 2. |
+| `-act` | `--activation`      | `tanh` | Activation function: a key of `ACTIVATIONS` (`tanh`, `relu` by default; case-insensitive). |
 
 A few parameters are fixed near the top of the script (edit there if needed):
 the diffusion time `t_diffusion`, the diffusion type (`"OU"` or `"FD"`), the
@@ -111,11 +144,11 @@ and the integration-grid resolution (`n_grid`, `xi_max`).
 
 ## Output
 
-A nested folder is created under `results/` whose name encodes the main
-parameters, e.g.:
+A nested folder is created under `results_spectrum/` whose name encodes the main
+parameters (including the activation), e.g.:
 
 ```
-results/output_spectral_quantities_sampling_bias_t_diff=0.001_type=OU_centroid1=3.0_centroid2=3.0/P=800_D=100_S=400/
+results_spectrum/output_spectral_quantities_sampling_bias_t_diff=0.001_type=OU_centroid1=3.0_centroid2=3.0_activation=tanh/P=800_D=100_S=400/
 ```
 
 (when centroids are non-orthogonal, a further `cosine_similarity=.../`
@@ -153,7 +186,8 @@ by using the seed printed on their log files.
 ## Performance notes
 
 - The Hermite integrals are the heaviest step; they are JIT-compiled with
-  `numba` and parallelized across features. The **first** call pays a one-time
-  compilation cost (cached on disk via `cache=True`).
+  `numba` and parallelized across features. Since the activation is passed to
+  them as an argument, they are compiled at every run (about one second); they
+  are not cached on disk.
 - The sample loop scales with `n_samples` and is parallelized over batches; tune
   `-b` (batch size) and `-j` (jobs) for your machine.

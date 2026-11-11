@@ -13,7 +13,8 @@ analysis of diffusion generative models. For several random realizations we:
      two Gaussian clusters with tunable weights, variances and centroid geometry.
   2. Build a random projection matrix W (the "random features", shape p x d).
   3. Compute a set of coefficients ("Hermite integrals":
-     alpha, beta, beta_tilde, gamma_tilde) that describe how a tanh non-linearity
+     alpha, beta, beta_tilde, gamma_tilde) that describe how the activation
+     function (tanh by default; chosen with -act from the ACTIVATIONS dictionary)
      acts on Gaussian inputs. For mixtures with non-zero centroids, the coefficients are different across different dimensions of hidden features space, and are collected in a p x 4 array; for mixtures with zero centroids, the coefficients are identical across dimensions and can be stored in a single 4-vector.
      Coefficients are computed for each cluster of the mixture with fast 1D/2D
      trapezoidal numerical integration.
@@ -23,7 +24,7 @@ analysis of diffusion generative models. For several random realizations we:
   5. Diagonalize U and U_tilde, then compute the semi-analytical learning
      curves (training loss, test loss, score-matching loss, see README file for definitions) as functions of
      training time.
-  6. Write all spectral quantities and loss curves to text files under `results/`.
+  6. Write all spectral quantities and loss curves to text files under `results_spectrum/`.
 
 The sample loop is split into BATCHES that run in parallel (joblib),
 and the integrals involved in the evaluation of the coefficients are JIT-compiled with numba for speed.
@@ -33,16 +34,20 @@ HOW TO RUN THE SCRIPT
 --------------------------------------------------------------------------------
 Basic run with defaults:
 
-    python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py
+    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py
 
 Custom run (dimension d=100, p=800 features, 400 samples, 10 realizations,
 batch size 50):
 
-    python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py -d 100 -p 800 -s 400 -r 10 -b 50
+    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py -d 100 -p 800 -s 400 -r 10 -b 50
+
+Same run with ReLU activation:
+
+    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py -d 100 -p 800 -s 400 -r 10 -b 50 -act relu
 
 See all options:
 
-    python Compute_U_spectrum_and_SemiAnalytical_Learning_Curves.py --help
+    python GEP_gaussian_mixture_UDiff_batch_userfriendly.py --help
 
 --------------------------------------------------------------------------------
 REQUIREMENTS
@@ -53,8 +58,8 @@ REQUIREMENTS
 --------------------------------------------------------------------------------
 STRUCTURE OF THE OUTPUT FOLDER
 --------------------------------------------------------------------------------
-A nested folder is created under `results/` whose name encodes the main
-parameters. Inside you will find, per parameter set:
+A nested folder is created under `results_spectrum/` whose name encodes the main
+parameters (including the activation). Inside you will find, per parameter set:
     - spectral_quantities_*.txt           (eigenvalues, IPRs, nu diagonal)
     - spectral_quantities_cluster1/2_*.txt (same, restricted to each cluster)
     - hermite_integrals_cluster1/2_*.txt   (Hermite coefficients)
@@ -83,6 +88,17 @@ start_time = time.time()
 # Every knob of the experiment is exposed here so you can sweep parameters
 # from the shell without editing the file. Run with --help to see them all.
 # =============================================================================
+
+# --- Available activation functions (selected with -act / --activation) -----
+# To use another activation, add an entry here: its Hermite coefficients are
+# evaluated numerically, so nothing else needs to change. The function must
+# work on both scalars and numpy arrays and be compilable by numba (plain numpy
+# expressions such as np.tanh, np.maximum, np.exp, ... are fine).
+ACTIVATIONS = {
+    "tanh": lambda x: np.tanh(x),
+    "relu": lambda x: np.maximum(x, 0.0),
+}
+
 parser = argparse.ArgumentParser(
     description="Spectral analysis of a diffusion feature matrix for a Gaussian mixture "
                 "(batch processing + fast trapezoidal integration).",
@@ -96,7 +112,7 @@ parser.add_argument("-p", "--projections", type=int, default=800,
                     help="Number p of random features / projections.")
 parser.add_argument("-s", "--samples", type=int, default=400,
                     help="Total number of samples drawn per realization.")
-parser.add_argument("-r", "--realizations", type=int, default=10,
+parser.add_argument("-r", "--realizations", type=int, default=1,
                     help="How many independent random realizations to average over.")
 
 # --- Centroid geometry (relative orientation of the two cluster means) ------
@@ -124,6 +140,11 @@ parser.add_argument("-c1", "--centroid_factor1", type=float, default=3.0,
 parser.add_argument("-c2", "--centroid_factor2", type=float, default=3.0,
                     help="Scale (length) factor of centroid 2.")
 
+# --- Activation function ----------------------------------------------------
+parser.add_argument("-act", "--activation", type=str.lower, default="tanh",
+                    choices=list(ACTIVATIONS),
+                    help="Activation function of the random features (keys of ACTIVATIONS).")
+
 args = parser.parse_args()
 
 # Copy parsed arguments into plain variables for readability further down.
@@ -140,6 +161,10 @@ var1 = args.var1
 var2 = args.var2
 centroids_factor1 = args.centroid_factor1
 centroids_factor2 = args.centroid_factor2
+activation = args.activation
+
+# JIT-compile the chosen activation so that the numba integrators below can call it.
+phi = njit(ACTIVATIONS[activation])
 
 # Centroid construction mode:
 #   True  -> homogeneous/quantized: m1 = c1 * ones,  m2 = c2 * sign_vector
@@ -187,7 +212,7 @@ rng = np.random.default_rng(seed)
 # Echo the configuration so the log file records exactly what was run.
 print(
     f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}, "
-    f"centroid_cosine={centroid_cosine_similarity:.3f}"
+    f"centroid_cosine={centroid_cosine_similarity:.3f}, activation={activation}"
 )
 print(f"Batch size: {batch_size}, Parallel jobs: {n_jobs}, weight: {weight}, "
       f"variance cluster 1: {var1}, variance cluster 2: {var2}")
@@ -327,13 +352,17 @@ def trapz_1d(y, x):
     return s
 
 
-@njit(parallel=True, cache=True)
-def compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights):
+# No cache=True: the activation phi is passed as an argument, and numba cannot
+# reliably cache functions that take other compiled functions as arguments
+# (compilation takes ~1 s per run).
+@njit(parallel=True)
+def compute_beta_trapz_2d(phi, mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights):
     """Compute the 'beta' coefficient via 2D trapezoidal integration.
 
-    beta[i] models a correlated double expectation of the tanh non-linearity:
+    beta[i] models a correlated double expectation of the activation phi
+    (a numba-compiled function, see ACTIVATIONS):
 
-        beta[i] = INT p(z1) * [ INT tanh(scale1*z1 + scale2*z2 + shift_i) p(z2) dz2 ]^2 dz1
+        beta[i] = INT p(z1) * [ INT phi(scale1*z1 + scale2*z2 + shift_i) p(z2) dz2 ]^2 dz1
 
     Returns
     -------
@@ -359,7 +388,7 @@ def compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weight
             integral_xi2_vals = np.zeros(n_grid)
             for idx2 in range(n_grid):
                 noise = scale_1 * xi[idx1] + scale_2 * xi[idx2] + shift_i
-                integral_xi2_vals[idx2] = np.tanh(noise) * gaussian_pdf[idx2]
+                integral_xi2_vals[idx2] = phi(noise) * gaussian_pdf[idx2]
 
             # Trapezoidal integral over z2.
             sum_xi2 = 0.0
@@ -379,16 +408,23 @@ def compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weight
     return beta_vals
 
 
-@njit(parallel=True, cache=True)
-def compute_hermite_integrals_GEP_hybrid(Gamma_t, mu, var_sample, adiff, Delta_t,
+# No cache=True: the activation phi is passed as an argument, and numba cannot
+# reliably cache functions that take other compiled functions as arguments
+# (compilation takes ~1 s per run).
+@njit(parallel=True)
+def compute_hermite_integrals_GEP_hybrid(phi, Gamma_t, mu, var_sample, adiff, Delta_t,
                                          p, xi, gaussian_weights):
     """Compute all four Hermite coefficients for every feature.
 
-    For each feature i (with z a standard Gaussian) we return:
-        alpha[i]       = E[ tanh(Gamma_t*z + adiff*mu[i]) ]
-        beta_tilde[i]  = E[ tanh^2(Gamma_t*z + adiff*mu[i]) ]
-        gamma_tilde[i] = E[ tanh(Gamma_t*z + adiff*mu[i]) * z ]
+    For the activation phi (a numba-compiled function, see ACTIVATIONS) and for
+    each feature i (with z a standard Gaussian) we return:
+        alpha[i]       = E[ phi(Gamma_t*z + adiff*mu[i]) ]
+        beta_tilde[i]  = E[ phi^2(Gamma_t*z + adiff*mu[i]) ]
+        gamma_tilde[i] = E[ phi(Gamma_t*z + adiff*mu[i]) * z ]
         beta[i]        = correlated double expectation (see compute_beta_trapz_2d)
+
+    alpha vanishes for odd activations with zero centroids (e.g. tanh), but not
+    in general (e.g. ReLU).
 
     The first three are cheap 1D integrals; the last is the 2D integral above.
 
@@ -402,25 +438,25 @@ def compute_hermite_integrals_GEP_hybrid(Gamma_t, mu, var_sample, adiff, Delta_t
     # ---- 1D integrals: alpha, beta_tilde, gamma_tilde (parallel over features) ----
     for i in prange(p):
         shift_i = adiff * mu[i]
-        tanh_vals = np.tanh(Gamma_t * xi + shift_i)   # tanh on the whole grid at once
+        phi_vals = phi(Gamma_t * xi + shift_i)        # activation on the whole grid at once
 
-        # alpha = E[tanh(...)]
-        integrand_alpha = tanh_vals * gaussian_weights * inv_sqrt_2pi
+        # alpha = E[phi(...)]
+        integrand_alpha = phi_vals * gaussian_weights * inv_sqrt_2pi
         hermite_integrals[i, 0] = trapz_1d(integrand_alpha, xi)
 
-        # beta_tilde = E[tanh^2(...)]
-        integrand_beta_tilde = tanh_vals**2 * gaussian_weights * inv_sqrt_2pi
+        # beta_tilde = E[phi^2(...)]
+        integrand_beta_tilde = phi_vals**2 * gaussian_weights * inv_sqrt_2pi
         hermite_integrals[i, 1] = trapz_1d(integrand_beta_tilde, xi)
 
-        # gamma_tilde = E[tanh(...) * z]
-        integrand_gamma_tilde = tanh_vals * xi * gaussian_weights * inv_sqrt_2pi
+        # gamma_tilde = E[phi(...) * z]
+        integrand_gamma_tilde = phi_vals * xi * gaussian_weights * inv_sqrt_2pi
         hermite_integrals[i, 2] = trapz_1d(integrand_gamma_tilde, xi)
 
     print("  Computed alpha, beta_tilde, gamma_tilde (1D trapz).")
 
     # ---- 2D integral: beta ----
     hermite_integrals[:, 3] = compute_beta_trapz_2d(
-        mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights
+        phi, mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights
     )
     print("  Computed beta (2D trapz).")
 
@@ -739,7 +775,8 @@ if __name__ == "__main__":
     # ---- Build the output directory (its name encodes the key parameters) ----
     _base_dir = (f"results_spectrum/output_spectral_quantities_sampling_bias_"
                  f"t_diff={t_diffusion}_type={diffusion_type}_"
-                 f"centroid1={centroids_factor1}_centroid2={centroids_factor2}/"
+                 f"centroid1={centroids_factor1}_centroid2={centroids_factor2}_"
+                 f"activation={activation}/"
                  f"P={p}_D={d}_S={n_samples}/")
     if not orthogonal_centroids:
         output_dir = os.path.join(_base_dir, f"cosine_similarity={centroid_cosine_similarity:.3f}/")
@@ -755,7 +792,7 @@ if __name__ == "__main__":
     print(f"\n{'='*80}")
     print("Spectral analysis of a diffusion feature matrix")
     print(f"{'='*80}")
-    print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}")
+    print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}, activation={activation}")
     print(f"Batch size: {batch_size}, weight: {weight1}, var1: {var1}, var2: {var2}")
     print(f"{'='*80}\n")
 
@@ -788,10 +825,10 @@ if __name__ == "__main__":
         # (f) Precompute the Hermite coefficients for each cluster.
         print("  Precomputing Hermite integrals for the 2 clusters...")
         hermite_integrals_cluster1 = compute_hermite_integrals_GEP_hybrid(
-            Gamma_t1, mu_lambda_cluster1, var1, adiff, Delta_t, p, xi, gaussian_weights
+            phi, Gamma_t1, mu_lambda_cluster1, var1, adiff, Delta_t, p, xi, gaussian_weights
         )
         hermite_integrals_cluster2 = compute_hermite_integrals_GEP_hybrid(
-            Gamma_t2, mu_lambda_cluster2, var2, adiff, Delta_t, p, xi, gaussian_weights
+            phi, Gamma_t2, mu_lambda_cluster2, var2, adiff, Delta_t, p, xi, gaussian_weights
         )
         print("  Hermite integrals precomputed.")
         print_hermite_integrals(hermite_integrals_cluster1,

@@ -1,14 +1,17 @@
-# Probing "speciation" in a diffusion feature matrix for a Gaussian mixture
+# Probing the "inference" of the class centroids by a random-feature model of the diffusion score
 
-This repository probes the **speciation transition** of a random-feature model
+This repository probes the **inference transition** of a random-feature model
 built on a two-cluster Gaussian mixture — a simple model of *class imbalance* in
 diffusion generative models. As the diffusion time is scanned backwards, the
 empirical feature covariance `U` develops isolated top eigenvalues whose
-eigenvectors begin to **align with a single cluster centroid**. That alignment
-("speciation") is what the script measures.
+eigenvectors begin to **align with a single cluster centroid**: the
+random-feature model *infers* the class centroids. That alignment ("inference")
+is what the script measures. It is a property of the random-feature model,
+distinct from the speciation of the diffusion process, whose time scale sets the
+probed window (see [The diffusion-time sweep](#the-diffusion-time-sweep)).
 
 The fully-commented code is in the file
-[`probe_speciation.py`](probe_speciation.py).
+[`centroids_SNR_at_speciation_scale.py`](centroids_SNR_at_speciation_scale.py).
 
 ---
 
@@ -24,7 +27,8 @@ diffusion times**, it:
 2. **Builds a random projection matrix** `W` of shape `p × d` (the "random
    features").
 3. **Computes Hermite coefficients** (`alpha`, `beta_tilde`, `gamma_tilde`,
-   `beta`) that describe how a `tanh` non-linearity acts on Gaussian inputs, per
+   `beta`) that describe how the activation function (`tanh` by default, see
+   [Activation function](#activation-function)) acts on Gaussian inputs, per
    cluster, with fast 1D/2D trapezoidal integration (JIT-compiled with `numba`).
    With non-zero centroids the coefficients differ across feature dimensions, so
    each cluster yields a `p × 4` array.
@@ -32,8 +36,8 @@ diffusion times**, it:
    summing per-sample contributions in parallel **batches** via `joblib`.
 5. **Diagonalizes** `U` and records, per diffusion time, the top three
    eigenvalues and the cosine similarities of the top eigenvectors with the
-   projected cluster centroids (the "speciation signals").
-6. **Appends** these signals to a text file under `results/`.
+   projected cluster centroids (the "inference signals").
+6. **Appends** these signals to a text file under `results_inference/`.
 
 ---
 
@@ -41,10 +45,34 @@ diffusion times**, it:
 
 Unlike a fixed-time spectral snapshot, this script scans the diffusion time
 from `t_ini = 0.8·log(d)` down to `t_fin = 0.1·log(d)` in `n_times = 20` steps.
-The range is set relative to `log(d)` because the speciation transition sits at
-a `d`-dependent time scale. Two noising schedules are available (`diffusion_type`
+The range is set relative to `log(d)`, the `d`-dependent time scale of
+speciation of the diffusion process, around which the script probes when the
+random-feature model infers the class centroids. Two noising schedules are available (`diffusion_type`
 near the top of the script): `OU` (Ornstein–Uhlenbeck, default) and `FD` (Free
 Diffusion).
+
+---
+
+## Activation function
+
+The activation is selected with `-act` / `--activation` among the keys of the
+`ACTIVATIONS` dictionary at the top of the script. By default it contains
+`tanh` (the default) and `relu`. The activation enters only through the Hermite
+coefficients, which are evaluated numerically, so any other activation can be
+used by adding an entry to the dictionary:
+
+```python
+ACTIVATIONS = {
+    "tanh": lambda x: np.tanh(x),
+    "relu": lambda x: np.maximum(x, 0.0),
+    "my_activation": lambda x: ...,
+}
+```
+
+The function must accept both scalars and numpy arrays and be compilable by
+`numba` (plain numpy expressions such as `np.tanh`, `np.maximum`, `np.exp` are
+fine), because the script JIT-compiles it and calls it inside the integration
+kernels.
 
 ---
 
@@ -60,7 +88,7 @@ pip install -r requirements.txt
 
 ```bash
 conda env create -f environment.yml
-conda activate class-imbalance-diffusion-speciation
+conda activate class-imbalance-diffusion-inference
 ```
 
 Dependencies: `numpy`, `numba`, `joblib`.
@@ -72,26 +100,32 @@ Dependencies: `numpy`, `numba`, `joblib`.
 Run with defaults:
 
 ```bash
-python probe_speciation.py
+python centroids_SNR_at_speciation_scale.py
 ```
 
 Custom run (`d=100`, `p=800` features, `400` samples, `10` realizations, batch
 size `50`):
 
 ```bash
-python probe_speciation.py -d 100 -p 800 -s 400 -r 10 -b 50
+python centroids_SNR_at_speciation_scale.py -d 100 -p 800 -s 400 -r 10 -b 50
+```
+
+Same run with ReLU activation:
+
+```bash
+python centroids_SNR_at_speciation_scale.py -d 100 -p 800 -s 400 -r 10 -b 50 -act relu
 ```
 
 Strong under-sampling of the minority class (majority weight `= 1 - d^{-0.5}`):
 
 ```bash
-python probe_speciation.py -u_samp_exp 0.5
+python centroids_SNR_at_speciation_scale.py -u_samp_exp 0.5
 ```
 
 See all options:
 
 ```bash
-python probe_speciation.py --help
+python centroids_SNR_at_speciation_scale.py --help
 ```
 
 ---
@@ -112,6 +146,7 @@ python probe_speciation.py --help
 | `-c1` | `--centroid_factor1` | `3.0` | Length scale of centroid 1. |
 | `-c2` | `--centroid_factor2` | `3.0` | Length scale of centroid 2. |
 | `-u_samp_exp` | `--under_sampling_exponent` | `0.0` | Under-sampling exponent: majority weight `= 1 - d^{-exp}` (0.0 = use fixed `--weight`; must be ≥ 0). |
+| `-act` | `--activation` | `tanh` | Activation function: a key of `ACTIVATIONS` (`tanh`, `relu` by default; case-insensitive). |
 
 A few parameters are fixed near the top of the script (edit there if needed):
 the diffusion-time window (`t_ini`, `t_fin`, `n_times`), the diffusion type
@@ -121,13 +156,13 @@ the diffusion-time window (`t_ini`, `t_fin`, `n_times`), the diffusion type
 
 ## Output
 
-A nested folder is created under `results_speciation/` whose name encodes the diffusion
-type, the centroid factors, and the sizes, e.g.:
+A nested folder is created under `results_inference/` whose name encodes the diffusion
+type, the centroid factors, the activation, and the sizes, e.g.:
 
 ```
-results_speciation/output_spectral_quantities_sampling_bias_probe_speciation_type=OU_centroid1=3.0_centroid2=3.0/
+results_inference/output_spectral_quantities_sampling_bias_probe_inference_type=OU_centroid1=3.0_centroid2=3.0_activation=tanh/
     P=800_D=100_S=400/
-        signals_to_probe_speciation_weight=0.5_var1=0.5_var2=0.5_ortho=False_batch.txt
+        signals_to_probe_inference_weight=0.5_var1=0.5_var2=0.5_ortho=False_batch.txt
 ```
 
 (when an under-sampling exponent is used, the file name encodes it instead of
@@ -173,8 +208,9 @@ bit-for-bit reproducibility.
 ## Performance notes
 
 - The Hermite integrals are the heaviest step; they are JIT-compiled with
-  `numba` and parallelized across features. The **first** call pays a one-time
-  compilation cost (cached on disk via `cache=True`). Cost grows with `n_grid²`
+  `numba` and parallelized across features. Since the activation is passed to
+  them as an argument, they are compiled at every run (about one second) and not
+  cached on disk. Cost grows with `n_grid²`
   (the 2D `beta` integral), `p`, the `n_times` swept times, and `n_realizations`.
 - The sample loop is parallelized over batches; tune `-b` (batch size) for your
   machine. `joblib` uses all available cores by default.

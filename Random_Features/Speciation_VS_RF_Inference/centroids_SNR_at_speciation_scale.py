@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
 ================================================================================
- Probing "speciation" in a diffusion-model feature matrix (Gaussian mixture)
+ Probing the "inference" of the class centroids by a random-feature model
+ of the diffusion score (Gaussian mixture)
 ================================================================================
 
 OUTLINE OF THE SCRIPT
 ---------------------
-This script studies the *speciation transition* of a random-feature model built
+This script studies the *inference transition* of a random-feature model built
 on a two-cluster Gaussian mixture — a minimal model of *class imbalance* in
 diffusion generative models. As we scan the diffusion time backwards, the
 empirical feature covariance `U` develops isolated top eigenvalues whose
-eigenvectors start to *align with a single cluster centroid*. That alignment
-("speciation") is the object we probe here.
+eigenvectors start to *align with a single cluster centroid*: the random-feature
+model "infers" the class centroids. That alignment ("inference") is the object
+we probe here. It is a property of the random-feature model, distinct from the
+speciation of the diffusion process (whose time scale sets the probed window,
+see section 1).
 
 For several random realizations and, within each, a sweep of diffusion times we:
 
@@ -21,7 +25,8 @@ For several random realizations and, within each, a sweep of diffusion times we:
      via an exponent (weight = 1 - d^{-exponent}).
   2. Build a random projection matrix W (the "random features", shape p x d).
   3. Compute per-cluster "Hermite integrals" (alpha, beta_tilde, gamma_tilde,
-     beta) that describe how a tanh non-linearity acts on Gaussian inputs, using
+     beta) that describe how the activation function (tanh by default; chosen
+     with -act from the ACTIVATIONS dictionary) acts on Gaussian inputs, using
      fast 1D/2D trapezoidal numerical integration (JIT-compiled with numba). For
      non-zero centroids the coefficients differ across feature dimensions, so
      each cluster yields a (p x 4) array.
@@ -33,7 +38,7 @@ For several random realizations and, within each, a sweep of diffusion times we:
           cluster centroid,
         - the average cosine similarity of all remaining eigenvectors with each
           projected centroid.
-  6. Append these "speciation signals" to a text file under `results_speciation/`.
+  6. Append these "inference signals" to a text file under `results_inference/`.
 
 The heavy Hermite integrals are JIT-compiled with numba (2D trapezoidal
 integration for `beta`, ~3000x faster than Monte-Carlo at comparable accuracy),
@@ -44,19 +49,23 @@ HOW TO RUN THE SCRIPT
 --------------------------------------------------------------------------------
 Basic run with defaults:
 
-    python probe_speciation.py
+    python centroids_SNR_at_speciation_scale.py
 
 Custom run (d=100, p=800 features, 400 samples, 10 realizations, batch size 50):
 
-    python probe_speciation.py -d 100 -p 800 -s 400 -r 10 -b 50
+    python centroids_SNR_at_speciation_scale.py -d 100 -p 800 -s 400 -r 10 -b 50
+
+Same run with ReLU activation:
+
+    python centroids_SNR_at_speciation_scale.py -d 100 -p 800 -s 400 -r 10 -b 50 -act relu
 
 Strong under-sampling of the minority class (weight = 1 - d^{-0.5}):
 
-    python probe_speciation.py -u_samp_exp 0.5
+    python centroids_SNR_at_speciation_scale.py -u_samp_exp 0.5
 
 See all options:
 
-    python probe_speciation.py --help
+    python centroids_SNR_at_speciation_scale.py --help
 
 --------------------------------------------------------------------------------
 REQUIREMENTS
@@ -66,12 +75,12 @@ REQUIREMENTS
 --------------------------------------------------------------------------------
 STRUCTURE OF THE OUTPUT FOLDER
 --------------------------------------------------------------------------------
-A nested folder is created under `results_speciation/` whose name encodes the diffusion
-type and the centroid factors, e.g.:
+A nested folder is created under `results_inference/` whose name encodes the diffusion
+type, the centroid factors and the activation, e.g.:
 
-    results_speciation/output_spectral_quantities_sampling_bias_probe_speciation_type=OU_centroid1=3.0_centroid2=3.0/
+    results_inference/output_spectral_quantities_sampling_bias_probe_inference_type=OU_centroid1=3.0_centroid2=3.0_activation=tanh/
         P=800_D=100_S=400/
-            signals_to_probe_speciation_weight=0.5_var1=0.5_var2=0.5_ortho=False_batch.txt
+            signals_to_probe_inference_weight=0.5_var1=0.5_var2=0.5_ortho=False_batch.txt
 
 Each row of the file corresponds to one diffusion time and contains (in order):
 
@@ -104,9 +113,21 @@ start_time = time.time()
 # Every knob of the experiment is exposed here so you can sweep parameters from
 # the shell without editing the file. Run with --help to see them all.
 # =============================================================================
+
+# --- Available activation functions (selected with -act / --activation) -----
+# To use another activation, add an entry here: its Hermite coefficients are
+# evaluated numerically, so nothing else needs to change. The function must
+# work on both scalars and numpy arrays and be compilable by numba (plain numpy
+# expressions such as np.tanh, np.maximum, np.exp, ... are fine).
+ACTIVATIONS = {
+    "tanh": lambda x: np.tanh(x),
+    "relu": lambda x: np.maximum(x, 0.0),
+}
+
 parser = argparse.ArgumentParser(
-    description="Probe the speciation transition of a diffusion feature matrix "
-                "for a Gaussian mixture (batch processing + fast trapezoidal integration).",
+    description="Probe when a random-feature model of the diffusion score infers the class "
+                "centroids (inference transition), for a Gaussian mixture "
+                "(batch processing + fast trapezoidal integration).",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 )
 
@@ -150,6 +171,11 @@ parser.add_argument("-u_samp_exp", "--under_sampling_exponent", type=float, defa
                     help="Exponent for strong under-sampling of the minority class "
                          "(0.0 = use the fixed --weight; must be non-negative).")
 
+# --- Activation function ----------------------------------------------------
+parser.add_argument("-act", "--activation", type=str.lower, default="tanh",
+                    choices=list(ACTIVATIONS),
+                    help="Activation function of the random features (keys of ACTIVATIONS).")
+
 args = parser.parse_args()
 
 # --- Resolve parameters from the command line -------------------------------
@@ -160,6 +186,10 @@ n_realizations = args.realizations
 orthogonal_centroids = args.ortho
 batch_size = args.batch_size
 under_sampling_exponent = args.under_sampling_exponent
+activation = args.activation
+
+# JIT-compile the chosen activation so that the numba integrators below can call it.
+phi = njit(ACTIVATIONS[activation])
 
 if under_sampling_exponent > 0:
     # Majority-class weight chosen so the minority class is strongly under-sampled.
@@ -180,8 +210,9 @@ weight2 = 1.0 - weight1
 
 # --- Diffusion-time sweep ---------------------------------------------------
 # We scan the diffusion time from t_ini down to t_fin (n_times steps). The range
-# is set relative to log(d) because the speciation transition sits at a
-# d-dependent time scale. Change these to move/zoom the probed window.
+# is set relative to log(d), the d-dependent time scale of speciation of the
+# diffusion process, around which we probe when the random-feature model infers
+# the class centroids. Change these to move/zoom the probed window.
 t_ini = 0.8 * np.log(d)
 t_fin = 0.1 * np.log(d)
 n_times = 20
@@ -197,7 +228,7 @@ n2 = n_samples - n1
 seed = secrets.randbits(128)
 rng = np.random.default_rng(seed)
 
-print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}, ortho={orthogonal_centroids}")
+print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}, ortho={orthogonal_centroids}, activation={activation}")
 print(f"Batch size: {batch_size}, weight: {weight}, variance cluster 1: {var1}, variance cluster 2: {var2}")
 print("seed = ", seed)
 
@@ -214,7 +245,7 @@ elif diffusion_type == "OU":     # Ornstein-Uhlenbeck: signal decays, variance -
 # =============================================================================
 # 2. INTEGRATION GRID FOR THE TRAPEZOIDAL RULE
 # -----------------------------------------------------------------------------
-# The Hermite integrals below are Gaussian expectations of tanh(...). We compute
+# The Hermite integrals below are Gaussian expectations of phi(...). We compute
 # them by trapezoidal quadrature on a fixed grid xi in [-xi_max, xi_max], with
 # the Gaussian weight exp(-xi^2/2) precomputed. Increase n_grid / xi_max for
 # higher accuracy at the cost of speed.
@@ -271,10 +302,12 @@ def generate_dataset(n, d, weight_cluster_1, vars, centroids_factor_1, centroids
 # =============================================================================
 # 4. HERMITE INTEGRALS (numba-accelerated)
 # -----------------------------------------------------------------------------
-# These are the Gaussian expectations that characterize how tanh acts on the
-# projected inputs. They are the heaviest part of the computation and are
-# JIT-compiled with numba (the first call pays a one-time compilation cost,
-# cached on disk via cache=True).
+# These are the Gaussian expectations that characterize how the activation phi
+# (a numba-compiled function, see ACTIVATIONS) acts on the projected inputs. They
+# are the heaviest part of the computation and are JIT-compiled with numba. The
+# two kernels taking phi as an argument are not cached on disk (numba cannot
+# reliably cache functions that take other compiled functions as arguments), so
+# they are compiled at every run (about one second).
 # =============================================================================
 @njit(cache=True)
 def trapz_1d(y, x):
@@ -288,11 +321,11 @@ def trapz_1d(y, x):
     return s
 
 
-@njit(parallel=True, cache=True)
-def compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights):
+@njit(parallel=True)
+def compute_beta_trapz_2d(phi, mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights):
     """2D trapezoidal integration for the `beta` coefficient.
 
-    beta[i] = ∫ p(xi1) * [ ∫ tanh(scale1*xi1 + scale2*xi2 + shift_i) p(xi2) dxi2 ]^2 dxi1
+    beta[i] = ∫ p(xi1) * [ ∫ phi(scale1*xi1 + scale2*xi2 + shift_i) p(xi2) dxi2 ]^2 dxi1
 
     This is ~3000x faster than Monte-Carlo with 1e8 samples while achieving
     < 1e-4 accuracy. Parallelized over the p feature dimensions.
@@ -317,7 +350,7 @@ def compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weight
             integral_xi2_vals = np.zeros(n_grid)
             for idx2 in range(n_grid):
                 noise = scale_1 * xi[idx1] + scale_2 * xi[idx2] + shift_i
-                integral_xi2_vals[idx2] = np.tanh(noise) * gaussian_pdf[idx2]
+                integral_xi2_vals[idx2] = phi(noise) * gaussian_pdf[idx2]
 
             # Integrate over xi2 (trapezoidal rule).
             sum_xi2 = 0.0
@@ -337,14 +370,14 @@ def compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weight
     return beta_vals
 
 
-@njit(parallel=True, cache=True)
-def compute_hermite_integrals_GEP_hybrid(Gamma_t, mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights):
+@njit(parallel=True)
+def compute_hermite_integrals_GEP_hybrid(phi, Gamma_t, mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights):
     """Compute the four Hermite integrals per feature dimension.
 
-    For each dimension i (with shift_i = adiff * mu[i] and z ~ N(0,1)):
-        alpha[i]       = E[ tanh(Gamma_t*z + shift_i) ]            (1D trapz)
-        beta_tilde[i]  = E[ tanh^2(Gamma_t*z + shift_i) ]          (1D trapz)
-        gamma_tilde[i] = E[ tanh(Gamma_t*z + shift_i) * z ]        (1D trapz)
+    For the activation phi and each dimension i (with shift_i = adiff * mu[i] and z ~ N(0,1)):
+        alpha[i]       = E[ phi(Gamma_t*z + shift_i) ]             (1D trapz)
+        beta_tilde[i]  = E[ phi^2(Gamma_t*z + shift_i) ]           (1D trapz)
+        gamma_tilde[i] = E[ phi(Gamma_t*z + shift_i) * z ]         (1D trapz)
         beta[i]        = correlated 2D expectation (see compute_beta_trapz_2d)
 
     Returns an array of shape (p, 4) with columns [alpha, beta_tilde, gamma_tilde, beta].
@@ -355,24 +388,24 @@ def compute_hermite_integrals_GEP_hybrid(Gamma_t, mu, var_sample, adiff, Delta_t
     # ---- alpha, beta_tilde, gamma_tilde: three 1D integrals per dimension ----
     for i in prange(p):
         shift_i = adiff * mu[i]
-        tanh_vals = np.tanh(Gamma_t * xi + shift_i)
+        phi_vals = phi(Gamma_t * xi + shift_i)
 
-        # alpha: E[tanh(...)]
-        integrand_alpha = tanh_vals * gaussian_weights * inv_sqrt_2pi
+        # alpha: E[phi(...)]
+        integrand_alpha = phi_vals * gaussian_weights * inv_sqrt_2pi
         hermite_integrals[i, 0] = trapz_1d(integrand_alpha, xi)
 
-        # beta_tilde: E[tanh^2(...)]
-        integrand_beta_tilde = tanh_vals ** 2 * gaussian_weights * inv_sqrt_2pi
+        # beta_tilde: E[phi^2(...)]
+        integrand_beta_tilde = phi_vals ** 2 * gaussian_weights * inv_sqrt_2pi
         hermite_integrals[i, 1] = trapz_1d(integrand_beta_tilde, xi)
 
-        # gamma_tilde: E[tanh(...) * z]
-        integrand_gamma_tilde = tanh_vals * xi * gaussian_weights * inv_sqrt_2pi
+        # gamma_tilde: E[phi(...) * z]
+        integrand_gamma_tilde = phi_vals * xi * gaussian_weights * inv_sqrt_2pi
         hermite_integrals[i, 2] = trapz_1d(integrand_gamma_tilde, xi)
 
     print(f"  ✓ Computed alpha, beta_tilde, gamma_tilde (1D trapz).")
 
     # ---- beta: the correlated 2D integral ----
-    hermite_integrals[:, 3] = compute_beta_trapz_2d(mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights)
+    hermite_integrals[:, 3] = compute_beta_trapz_2d(phi, mu, var_sample, adiff, Delta_t, p, xi, gaussian_weights)
     print(f"  ✓ Computed beta (2D trapz).")
 
     return hermite_integrals
@@ -504,7 +537,7 @@ def process_batch(batch_indices, X, W, cluster_indices,
 def evaluate_U_tilde(random_features, hermite_coefficients1, hermite_coefficients2):
     """(Optional) Population / generalization counterpart of U (sample-free).
 
-    Not used to produce the speciation signals below, but kept as a reference
+    Not used to produce the inference signals below, but kept as a reference
     implementation: it assembles the mixture-averaged population feature
     covariance directly from the Hermite coefficients of the two clusters.
     """
@@ -538,9 +571,11 @@ def evaluate_U_tilde(random_features, hermite_coefficients1, hermite_coefficient
 # =============================================================================
 if __name__ == "__main__":
 
-    # Output folder encodes the diffusion type, centroid factors and sizes.
-    output_dir = (f"results_speciation/output_spectral_quantities_sampling_bias_probe_speciation_"
-                  f"type={diffusion_type}_centroid1={centroids_factor1}_centroid2={centroids_factor2}/"
+    # Output folder encodes the diffusion type, centroid factors, activation and sizes.
+    # (Results are appended, so runs with different activations must not share a folder.)
+    output_dir = (f"results_inference/output_spectral_quantities_sampling_bias_probe_inference_"
+                  f"type={diffusion_type}_centroid1={centroids_factor1}_centroid2={centroids_factor2}_"
+                  f"activation={activation}/"
                   f"P={p}_D={d}_S={n_samples}/")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -549,18 +584,18 @@ if __name__ == "__main__":
     if under_sampling_exponent == 0:
         fname = open(os.path.join(
             output_dir,
-            f"signals_to_probe_speciation_weight={weight1}_var1={var1}_var2={var2}_ortho={orthogonal_centroids}_batch.txt"
+            f"signals_to_probe_inference_weight={weight1}_var1={var1}_var2={var2}_ortho={orthogonal_centroids}_batch.txt"
         ), "a")
     else:
         fname = open(os.path.join(
             output_dir,
-            f"signals_to_probe_speciation_under_sampling_exponent={under_sampling_exponent}_var1={var1}_var2={var2}_ortho={orthogonal_centroids}_batch.txt"
+            f"signals_to_probe_inference_under_sampling_exponent={under_sampling_exponent}_var1={var1}_var2={var2}_ortho={orthogonal_centroids}_batch.txt"
         ), "a")
 
     print(f"\n{'=' * 80}")
-    print(f"GEP Gaussian Mixture — probing speciation (BATCH PROCESSING + EMPIRICAL MEANS)")
+    print(f"GEP Gaussian Mixture — probing the inference of the class centroids (BATCH PROCESSING + EMPIRICAL MEANS)")
     print(f"{'=' * 80}")
-    print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}")
+    print(f"Parameters: d={d}, p={p}, n_samples={n_samples}, n_realizations={n_realizations}, activation={activation}")
     print(f"Batch size: {batch_size}, weight: {weight1}, variance cluster 1: {var1}, variance cluster 2: {var2}")
     print(f"{'=' * 80}\n")
 
@@ -595,10 +630,10 @@ if __name__ == "__main__":
             # Precompute the Hermite integrals for both clusters (key optimization).
             print(f"  Precomputing Hermite integrals for 2 clusters...")
             hermite_integrals_cluster1 = compute_hermite_integrals_GEP_hybrid(
-                Gamma_t1, mu_lambda_cluster1, var1, adiff[count], Delta_t[count], p, xi, gaussian_weights
+                phi, Gamma_t1, mu_lambda_cluster1, var1, adiff[count], Delta_t[count], p, xi, gaussian_weights
             )
             hermite_integrals_cluster2 = compute_hermite_integrals_GEP_hybrid(
-                Gamma_t2, mu_lambda_cluster2, var2, adiff[count], Delta_t[count], p, xi, gaussian_weights
+                phi, Gamma_t2, mu_lambda_cluster2, var2, adiff[count], Delta_t[count], p, xi, gaussian_weights
             )
             print(f"  ✓ Hermite integrals precomputed!")
             # (Optional) dump the coefficients — uncomment to enable:
@@ -629,7 +664,7 @@ if __name__ == "__main__":
             U_GEP = np.sum(np.array(batch_results), axis=0)
             print(f"  ✓ Computed U matrix ({p}×{p}) at time t={t} with diffusion type {diffusion_type}.")
 
-            # ---- Diagonalize U and probe speciation ----
+            # ---- Diagonalize U and probe the inference of the centroids ----
             print("  Computing eigenvalues...")
             eigs_GEP, eigvecs_GEP = np.linalg.eigh(U_GEP)  # ascending eigenvalues
             print(f"  ✓ Eigenvalues computed.")
@@ -649,7 +684,7 @@ if __name__ == "__main__":
             cos_sim_other_eigvecs_cluster1_avg = np.mean(other_eigvecs.T @ mu_lambda_cluster1 / (np.linalg.norm(other_eigvecs, axis=0) * np.linalg.norm(mu_lambda_cluster1)))
             cos_sim_other_eigvecs_cluster2_avg = np.mean(other_eigvecs.T @ mu_lambda_cluster2 / (np.linalg.norm(other_eigvecs, axis=0) * np.linalg.norm(mu_lambda_cluster2)))
 
-            # Append one row of speciation signals for this diffusion time.
+            # Append one row of inference signals for this diffusion time.
             print("Saving cosine similarities to file...")
             print(t, eigs_GEP[-1], eigs_GEP[-2], eigs_GEP[-3],
                   cos_sim_eigvec1_cluster1, cos_sim_eigvec1_cluster2,

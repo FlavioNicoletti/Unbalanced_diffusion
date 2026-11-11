@@ -23,16 +23,18 @@ context of diffusion generative models. For several random realizations we:
         - the SCORE ERROR  (squared distance between the learned score and the
                             *analytically known* Bayes-optimal score of the
                             mixture; also per cluster).
-  5. Append all recorded curves to `.npy` files under `results_new_bis/`.
+  5. Append all recorded curves to `.npy` files under `results_training/`.
 
 THE MODEL
 ---------
 The score network is a one-hidden-layer random-feature map
 
-        S_A(x) = A * tanh( W x / sqrt(d) ),
+        S_A(x) = A * phi( W x / sqrt(d) ),
 
 where W (p x d) is fixed at initialization and only A (d x p) is trained. The
-activation is `tanh` here but can be swapped in `ScoreModel.__call__`.
+activation phi is chosen with -activation among the entries of the ACTIVATIONS
+dictionary at the top of the script (default: tanh; relu is also available).
+To use another activation, add it to the dictionary.
 
 THE DIFFUSION
 -------------
@@ -62,6 +64,11 @@ Custom run (dimension d=1000, psi_p=2, 3e6 iterations, Adam, 5 realizations):
     python Training_random_features_mixture_unbalance_userfriendly.py \
         -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5
 
+Same run with ReLU activation:
+
+    python Training_random_features_mixture_unbalance_userfriendly.py \
+        -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5 -activation relu
+
 See all options:
 
     python Training_random_features_mixture_unbalance_userfriendly.py --help
@@ -74,12 +81,13 @@ REQUIREMENTS
 --------------------------------------------------------------------------------
 STRUCTURE OF THE OUTPUT FOLDER
 --------------------------------------------------------------------------------
-A nested folder is created under `results_new_bis/results_training_RF/` whose
-name encodes the centroid factors and the run parameters, e.g.:
+A nested folder is created under `results_training/results_training_RF/` whose
+name encodes the centroid factors and the run parameters (including the
+activation), e.g.:
 
-    results_new_bis/results_training_RF/
+    results_training/results_training_RF/
         centroids_factor1_1.0_centroids_factor2_1.0/
-            Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD/
+            Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD_activation=tanh/
                 Train_loss_weight=0.5_var1=0.5_var2=0.5.npy
                 Test_loss_weight=0.5_var1=0.5_var2=0.5.npy
                 Test_loss_1_weight=...npy    (cluster 1 only)
@@ -106,6 +114,14 @@ import torch.optim as optim
 # Top-level output root. Every run writes below `<main_dir>/results_training_RF/`.
 # Change this single constant to redirect all results elsewhere.
 main_dir = "results_training"
+
+# Available activation functions phi of the random features (selected with -activation).
+# To use another activation, add an entry here: any function acting elementwise
+# on torch tensors works (e.g. torch.sigmoid, torch.nn.functional.gelu, or a lambda).
+ACTIVATIONS = {
+    "tanh": torch.tanh,
+    "relu": torch.relu,
+}
 
 
 # =============================================================================
@@ -144,6 +160,11 @@ def get_args():
                         help="Length scale of centroid 1")
     parser.add_argument("-centroids_factor2", "--centroids_factor2", type=float, default=1.0,
                         help="Length scale of centroid 2")
+
+    # --- Activation of the random features ------------------------------------
+    parser.add_argument("-activation", "--activation", type=str.lower, default="tanh",
+                        choices=list(ACTIVATIONS),
+                        help="Activation function of the random features (keys of ACTIVATIONS)")
 
     # --- Training ------------------------------------------------------------
     parser.add_argument("-optimizer", "--optimizer", choices=["GD", "Adam"], default="GD",
@@ -323,21 +344,23 @@ def f_1(ys, weight, vars, a_t, delta_t, d):
 # =============================================================================
 # 5. MODEL DEFINITION
 # -----------------------------------------------------------------------------
-# Random-feature score model  S_A(x) = A * tanh(W x / sqrt(d)).
+# Random-feature score model  S_A(x) = A * phi(W x / sqrt(d)), with phi the chosen
+# activation (an entry of ACTIVATIONS).
 # W (p x d) is frozen at initialization; only A (d x p) is learned.
 # The class also carries the loss / evaluation methods so that they no longer
 # rely on closed-over state from main().
 # =============================================================================
 class ScoreModel:
-    def __init__(self, W, A, cfg: DiffusionConfig):
-        self.W = W       # frozen random features, shape (p, d)
-        self.A = A       # learnable readout, shape (d, p)
+    def __init__(self, W, A, cfg: DiffusionConfig, activation=torch.tanh):
+        self.W = W                  # frozen random features, shape (p, d)
+        self.A = A                  # learnable readout, shape (d, p)
         self.cfg = cfg
+        self.activation = activation  # elementwise activation phi (see ACTIVATIONS)
 
     def __call__(self, x_input):
-        # Forward pass. The activation (tanh) can be changed here if desired.
+        # Forward pass: S_A(x) = A * phi(W x / sqrt(d)).
         d, device = self.cfg.d, self.cfg.device
-        return (self.A @ torch.tanh(self.W @ x_input.T / torch.sqrt(torch.tensor(d, device=device)))).T
+        return (self.A @ self.activation(self.W @ x_input.T / torch.sqrt(torch.tensor(d, device=device)))).T
 
     # ------------------------------------------------------------------
     # Training objective (single noise draw).
@@ -539,6 +562,8 @@ def main():
     var_2 = args.var2
     centroids_factor1 = args.centroids_factor1
     centroids_factor2 = args.centroids_factor2
+    activation = args.activation
+    phi = ACTIVATIONS[activation]
 
     cfg = DiffusionConfig(
         d=d, n=n, a_t=a_t, delta_t=delta_t,
@@ -560,7 +585,7 @@ def main():
     print(f"\n🚀 Training random feature diffusion model on imbalanced data")
     print(f"Device: {device}")
     print(f"Seed: {seed}")
-    print(f"Parameters: ψ_p={Psi_p}, ψ_n={Psi_n}, d={d}, t={t}")
+    print(f"Parameters: ψ_p={Psi_p}, ψ_n={Psi_n}, d={d}, t={t}, activation={activation}")
     print(f"Optimizer: {args.optimizer}, lr={learning_rate:.2e}")
     print(f"Number of epochs: {args.num_epochs:,}")
     print(f"Number of realizations: {args.n_realizations}\n")
@@ -568,8 +593,10 @@ def main():
     # Log-spaced checkpoints (600 of them) at which metrics are evaluated.
     sample_times = sample_logarithmically(600, args.num_epochs)
 
-    # Full run folder, encoding the main run parameters in its name.
-    run_name = f"Psi_p={Psi_p:.1f}_Psi_n={Psi_n:.1f}_d={d:.0e}_t={t:.0e}_{args.optimizer}"
+    # Full run folder, encoding the main run parameters (and the activation) in its name.
+    # Results are appended realization by realization, so runs with different
+    # activations must not share a folder.
+    run_name = f"Psi_p={Psi_p:.1f}_Psi_n={Psi_n:.1f}_d={d:.0e}_t={t:.0e}_{args.optimizer}_activation={activation}"
     save_dir = os.path.join(output_dir_full, run_name)
     os.makedirs(save_dir, exist_ok=True)
     print(f"Saving results to: {save_dir}\n")
@@ -583,7 +610,7 @@ def main():
         # Fresh random features W (frozen) and readout A (learned, init at zero).
         W = torch.randn(p, d, device=device)
         A = torch.zeros(d, p, requires_grad=True, device=device)
-        score_model = ScoreModel(W, A, cfg)
+        score_model = ScoreModel(W, A, cfg, activation=phi)
 
         # Fresh training dataset for this realization.
         x, m_1, m_2 = generate_dataset(n, d, weight, [var_1, var_2], centroids_factor1, centroids_factor2, r, device)

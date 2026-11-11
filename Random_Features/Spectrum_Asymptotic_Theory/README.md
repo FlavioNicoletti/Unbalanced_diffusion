@@ -14,7 +14,7 @@ The fully-commented code is in the file
 
 ## The finite-centroid regime
 
-The script treats the regime where the centroid norm is subextensive---i.e. `o(N)`, for data with dimension `N`. At leading order
+The script treats the regime where the centroid norm is `O(1)`. At leading order
 the centroids drop out of the asymptotic spectrum: the Hermite coefficients are
 *scalars* and the saddle-point equations reduce to two scalar unknowns
 (`g_Psi`, `g_Omega`), solved by `solve_equations_finite_centroids`.
@@ -106,7 +106,7 @@ python saddle_point_spectrum.py
 Custom run:
 
 ```bash
-python saddle_point_spectrum.py -d 200 -chi_p 60 -chi_s 30 -weight 0.3 -t 0.1 -activation relu
+python saddle_point_spectrum.py -chi_p 60 -chi_s 30 -weight 0.3 -t 0.1 -activation relu
 ```
 
 See all options:
@@ -121,9 +121,8 @@ python saddle_point_spectrum.py --help
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `-d` | `100` | Ambient data dimension `d`. |
-| `-chi_p` | `60.0` | Ratio `p/d` (features per dimension); the number of features is `P = d·chi_p`. |
-| `-chi_s` | `30.0` | Ratio `n/d` (samples per dimension); the number of samples is `S = d·chi_s`. |
+| `-chi_p` | `60.0` | Ratio `p/d` (random features per data dimension). |
+| `-chi_s` | `30.0` | Ratio `n/d` (training samples per data dimension). |
 | `-weight` | `0.5` | Mixing weight of cluster 1 (cluster 2 gets `1 - weight`); the imbalance knob. |
 | `-var0` | `0.5` | Variance of cluster 1. |
 | `-var1` | `0.25` | Variance of cluster 2. |
@@ -135,7 +134,7 @@ A few parameters are fixed near the top of the script (edit there if needed):
 the available activations (`ACTIVATIONS`), the exact-ReLU switch
 (`use_exact_relu_coefficients`), the eigenvalue grid (`n_values`,
 `lambda_values`), the continuation protocol (`n_iter`), and the training-loss
-time grid (`training_times`, learning rate `lr` to rescale the training time if needed).
+time grid (`training_times`, learning rate `lr`).
 
 ---
 
@@ -145,7 +144,7 @@ A nested folder is created under `results_asymptotic/` whose name encodes the
 main parameters, e.g. (defaults):
 
 ```
-results_asymptotic/solver_saddle_point_equations_finite/P=6000_D=100_S=3000/t=0.01_activation=tanh/
+results_asymptotic/solver_saddle_point_equations_finite/chi_p=60.0_chi_s=30.0/t=0.01_activation=tanh/
 ```
 
 Inside you get:
@@ -164,7 +163,8 @@ Inside you get:
 ## Reproducibility
 
 The solver is **deterministic** — the results depend only on the command-line
-parameters, not on any random seed. Running twice with the same arguments reproduces the
+parameters, not on any random seed (the `seed`/`rng` defined at the top are not
+used by the computation). Running twice with the same arguments reproduces the
 output exactly.
 
 ---

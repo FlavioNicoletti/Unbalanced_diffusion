@@ -50,7 +50,7 @@ Basic run with defaults:
 
 Custom run:
 
-    python saddle_point_spectrum.py -d 200 -chi_p 60 -chi_s 30 -weight 0.3 -t 0.1 -activation relu
+    python saddle_point_spectrum.py -chi_p 60 -chi_s 30 -weight 0.3 -t 0.1 -activation relu
 
 See all options:
 
@@ -68,7 +68,7 @@ STRUCTURE OF THE OUTPUT FOLDER
 A nested folder is created under `results_asymptotic/` whose name encodes the
 main parameters, e.g.:
 
-    results_asymptotic/solver_saddle_point_equations_finite/P=6000_D=100_S=3000/t=0.01_activation=tanh/
+    results_asymptotic/solver_saddle_point_equations_finite/chi_p=60.0_chi_s=30.0/t=0.01_activation=tanh/
         rho_lambda_analytical_weight=..._ortho.txt          (lambda, rho, rho_Omega)
         lambda_star_analytical_weight=..._ortho.txt         (Re g at the edge, spectral edge)
         training_loss_fully_analytical_weight=..._ortho.txt (training time, loss)
@@ -110,7 +110,6 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter
 )
 
-parser.add_argument('-d', type=int, default=100, help='Dimensionality of the data.')
 parser.add_argument('-chi_p', type=float, default=60.0, help='Value of chi_p: number of hidden neurons / dimensionality of the data.')
 parser.add_argument('-chi_s', type=float, default=30.0, help='Value of chi_s: number of samples / dimensionality of the data.')
 parser.add_argument('-weight', type=float, default=0.5, help='Weight for the mixture of clusters: class 1 has this input weight, class 2 has the complementary weight.')
@@ -132,7 +131,6 @@ args = parser.parse_args()
 
 ## input parameters
 
-d = args.d
 chi_p = args.chi_p
 chi_s = args.chi_s
 weight = args.weight
@@ -549,7 +547,7 @@ def spectral_edge_finite_centroids(g_Psi_star, g_Omega_star, diag, params):
 # =============================================================================
 if __name__ == "__main__":
 
-    output_dir = f"results_asymptotic/solver_saddle_point_equations_finite/P={int(d*chi_p)}_D={d}_S={int(d*chi_s)}/t={t}_activation={activation}/"
+    output_dir = f"results_asymptotic/solver_saddle_point_equations_finite/chi_p={chi_p}_chi_s={chi_s}/t={t}_activation={activation}/"
 
     ## create output directory if it does not exist
 
@@ -633,9 +631,6 @@ if __name__ == "__main__":
     print("Solved saddle point equations for finite centroids! Time taken: {:.2f} seconds".format(end - start))
 
     ## print solution on file
-
-    P = int(d*chi_p)
-    S = int(d*chi_s)
 
     thr = 1e-6
 

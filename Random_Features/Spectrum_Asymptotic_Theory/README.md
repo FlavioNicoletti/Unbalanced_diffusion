@@ -14,7 +14,7 @@ The fully-commented code is in the file
 
 ## The finite-centroid regime
 
-The script treats the regime where the centroid norm is `O(1)`. At leading order
+The script treats the regime where the centroid norm is subextensive---i.e. `o(N)`, for data with dimension `N`. At leading order
 the centroids drop out of the asymptotic spectrum: the Hermite coefficients are
 *scalars* and the saddle-point equations reduce to two scalar unknowns
 (`g_Psi`, `g_Omega`), solved by `solve_equations_finite_centroids`.

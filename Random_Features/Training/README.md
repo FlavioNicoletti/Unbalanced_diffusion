@@ -51,10 +51,10 @@ model gets to the optimum.
 
 For each of several random *realizations* it:
 
-1. **Draws a dataset** of `n = ψ_n · d` points in dimension `d`, split into two
+1. **Draws a dataset** of `n = χ_s · d` points in dimension `d`, split into two
    Gaussian clusters with tunable mixing weight, variances, and centroid
    geometry (their cosine similarity).
-2. **Builds a frozen random projection** `W` of shape `p × d` (with `p = ψ_p · d`)
+2. **Builds a frozen random projection** `W` of shape `p × d` (with `p = χ_p · d`)
    and a learnable readout `A` initialized at zero.
 3. **Trains `A`** by gradient descent (plain SGD or Adam) on the denoising
    score-matching objective, drawing fresh noise every iteration.
@@ -97,18 +97,18 @@ Run with defaults:
 python Training_random_features_mixture_unbalance_userfriendly.py
 ```
 
-Custom run (`d=1000`, `ψ_p=2`, `3e6` iterations, Adam, `5` realizations):
+Custom run (`d=1000`, `χ_p=2`, `3e6` iterations, Adam, `5` realizations):
 
 ```bash
 python Training_random_features_mixture_unbalance_userfriendly.py \
-    -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5
+    -d 1000 -chi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5
 ```
 
 Same run with ReLU activation:
 
 ```bash
 python Training_random_features_mixture_unbalance_userfriendly.py \
-    -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5 -activation relu
+    -d 1000 -chi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5 -activation relu
 ```
 
 See all options:
@@ -123,8 +123,8 @@ python Training_random_features_mixture_unbalance_userfriendly.py --help
 
 | Flag | Long form | Default | Meaning |
 |------|-----------|---------|---------|
-| `-psi_p` | `--psi_p` | `2.0` | `ψ_p = p/d`: number of random features per dimension. |
-| `-psi_n` | `--psi_n` | `1.0` | `ψ_n = n/d`: number of training samples per dimension. |
+| `-chi_p` | `--chi_p` | `2.0` | `χ_p = p/d`: number of random features per dimension. |
+| `-chi_s` | `--chi_s` | `1.0` | `χ_s = n/d`: number of training samples per dimension. |
 | `-d` | `--d` | `2000` | Ambient data dimension `d`. |
 | `-t` | `--t` | `0.01` | Diffusion time `t`. |
 | `-diffusion_type` | `--diffusion_type` | `OU` | Noising schedule: `OU` (Ornstein–Uhlenbeck) or `FD` (Free Diffusion). |
@@ -157,7 +157,7 @@ activation, so runs with different activations never share files), e.g.:
 ```
 results_training/results_training_RF/
     centroids_factor1_1.0_centroids_factor2_1.0/
-        Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD_activation=tanh/
+        Chi_p=2.0_Chi_s=1.0_d=2e+03_t=1e-02_GD_activation=tanh/
 ```
 
 Inside, per parameter set, you get eight `.npy` files (the `weight`, `var1`,

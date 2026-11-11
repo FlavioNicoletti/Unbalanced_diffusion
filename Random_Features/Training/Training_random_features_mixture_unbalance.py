@@ -59,15 +59,15 @@ Basic run with defaults:
 
     python Training_random_features_mixture_unbalance_userfriendly.py
 
-Custom run (dimension d=1000, psi_p=2, 3e6 iterations, Adam, 5 realizations):
+Custom run (dimension d=1000, chi_p=2, 3e6 iterations, Adam, 5 realizations):
 
     python Training_random_features_mixture_unbalance_userfriendly.py \
-        -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5
+        -d 1000 -chi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5
 
 Same run with ReLU activation:
 
     python Training_random_features_mixture_unbalance_userfriendly.py \
-        -d 1000 -psi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5 -activation relu
+        -d 1000 -chi_p 2 -num_epochs 3000000 -optimizer Adam -n_realizations 5 -activation relu
 
 See all options:
 
@@ -87,7 +87,7 @@ activation), e.g.:
 
     results_training/results_training_RF/
         centroids_factor1_1.0_centroids_factor2_1.0/
-            Psi_p=2.0_Psi_n=1.0_d=2e+03_t=1e-02_GD_activation=tanh/
+            Chi_p=2.0_Chi_s=1.0_d=2e+03_t=1e-02_GD_activation=tanh/
                 Train_loss_weight=0.5_var1=0.5_var2=0.5.npy
                 Test_loss_weight=0.5_var1=0.5_var2=0.5.npy
                 Test_loss_1_weight=...npy    (cluster 1 only)
@@ -137,11 +137,11 @@ def get_args():
     )
 
     # --- Architecture / dataset sizes (as ratios to the dimension d) ---------
-    # psi_p = p/d controls the number of random features; psi_n = n/d the number
+    # chi_p = p/d controls the number of random features; chi_s = n/d the number
     # of training samples. Working with ratios keeps the "high-dimensional"
     # regime well defined as d grows.
-    parser.add_argument("-psi_p", "--psi_p", type=float, default=2.0, help="psi_p = p/d (features per dimension)")
-    parser.add_argument("-psi_n", "--psi_n", type=float, default=1.0, help="psi_n = n/d (samples per dimension)")
+    parser.add_argument("-chi_p", "--chi_p", type=float, default=2.0, help="chi_p = p/d (features per dimension)")
+    parser.add_argument("-chi_s", "--chi_s", type=float, default=1.0, help="chi_s = n/d (samples per dimension)")
     parser.add_argument("-d", "--d", type=int, default=int(2e3), help="Ambient data dimension d")
 
     # --- Diffusion process ---------------------------------------------------
@@ -548,7 +548,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # --- Derived parameters --------------------------------------------------
-    Psi_p, Psi_n, d, t = args.psi_p, args.psi_n, args.d, args.t
+    Chi_p, Chi_s, d, t = args.chi_p, args.chi_s, args.d, args.t
     diffusion_type = args.diffusion_type
     if diffusion_type == "FD":       # Free Diffusion: signal kept, noise grows linearly.
         a_t = 1.0
@@ -556,7 +556,7 @@ def main():
     elif diffusion_type == "OU":     # Ornstein-Uhlenbeck: signal decays, variance -> 1.
         a_t = np.exp(-t)
         delta_t = 1 - a_t ** 2
-    p, n = int(Psi_p * d), int(Psi_n * d)
+    p, n = int(Chi_p * d), int(Chi_s * d)
     weight, r = args.weight, args.r
     var_1 = args.var1
     var_2 = args.var2
@@ -585,7 +585,7 @@ def main():
     print(f"\n🚀 Training random feature diffusion model on imbalanced data")
     print(f"Device: {device}")
     print(f"Seed: {seed}")
-    print(f"Parameters: ψ_p={Psi_p}, ψ_n={Psi_n}, d={d}, t={t}, activation={activation}")
+    print(f"Parameters: χ_p={Chi_p}, χ_s={Chi_s}, d={d}, t={t}, activation={activation}")
     print(f"Optimizer: {args.optimizer}, lr={learning_rate:.2e}")
     print(f"Number of epochs: {args.num_epochs:,}")
     print(f"Number of realizations: {args.n_realizations}\n")
@@ -596,7 +596,7 @@ def main():
     # Full run folder, encoding the main run parameters (and the activation) in its name.
     # Results are appended realization by realization, so runs with different
     # activations must not share a folder.
-    run_name = f"Psi_p={Psi_p:.1f}_Psi_n={Psi_n:.1f}_d={d:.0e}_t={t:.0e}_{args.optimizer}_activation={activation}"
+    run_name = f"Chi_p={Chi_p:.1f}_Chi_s={Chi_s:.1f}_d={d:.0e}_t={t:.0e}_{args.optimizer}_activation={activation}"
     save_dir = os.path.join(output_dir_full, run_name)
     os.makedirs(save_dir, exist_ok=True)
     print(f"Saving results to: {save_dir}\n")

@@ -30,7 +30,7 @@ The repository contains the following folders:
   - `Speciation_VS_RF_Inference/` - Diffusion-time sweep for centroids signals
     - `centroids_SNR_at_speciation_scale.py` - Class-inference-probing script
     - `README.md` - Usage and output documentation
-    - `results_speciation/` - Speciation output directory
+    - `results_inference_centroids/` - Speciation output directory
 - `Experiments` - Main experiments directory.
    -TBA
 
